@@ -2131,9 +2131,8 @@ dependencies = [
 
 [[package]]
 name = "pulldown-cmark"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffade02495f22453cd593159ea2f59827aae7f53fa8323f756799b670881dcf8"
+version = "0.9.0"
+source = "git+https://github.com/phlip9/pulldown-cmark.git?branch=mathjax#a0f2d5fe35e2bad0c6acd3856b90bf4a4673918f"
 dependencies = [
  "bitflags",
  "memchr",

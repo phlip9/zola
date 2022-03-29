@@ -128,10 +128,10 @@ fn get_heading_refs(events: &[Event]) -> Vec<HeadingRef> {
 
     for (i, event) in events.iter().enumerate() {
         match event {
-            Event::Start(Tag::Heading(level)) => {
-                heading_refs.push(HeadingRef::new(i, *level));
+            Event::Start(Tag::Heading(level, _, _)) => {
+                heading_refs.push(HeadingRef::new(i, *level as u32));
             }
-            Event::End(Tag::Heading(_)) => {
+            Event::End(Tag::Heading(_, _, _)) => {
                 heading_refs.last_mut().expect("Heading end before start?").end_idx = i;
             }
             _ => (),
@@ -175,6 +175,7 @@ pub fn markdown_to_html(
     opts.insert(Options::ENABLE_FOOTNOTES);
     opts.insert(Options::ENABLE_STRIKETHROUGH);
     opts.insert(Options::ENABLE_TASKLISTS);
+    opts.insert(Options::ENABLE_MATH);
 
     if context.config.markdown.smart_punctuation {
         opts.insert(Options::ENABLE_SMART_PUNCTUATION);
