@@ -21,7 +21,8 @@ nom-bibtex = "0.3"
 num-format = "0.4"
 once_cell = "1"
 percent-encoding = "2"
-pulldown-cmark = { version = "0.9", default-features = false, features = ["simd"]  }
+# pulldown-cmark = { version = "0.9", default-features = false, features = ["simd"]  }
+pulldown-cmark = { git = "https://github.com/phlip9/pulldown-cmark", rev = "fef60ae76761c9a5c2294d215c180eee192d42a4", default-features = false, features = ["simd", "html"] }
 quickxml_to_serde = "0.5"
 rayon = "1"
 regex = "1"

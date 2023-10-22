@@ -16,7 +16,7 @@ use utils::slugs::slugify_anchors;
 use utils::table_of_contents::{make_table_of_contents, Heading};
 use utils::types::InsertAnchor;
 
-use self::cmark::{Event, LinkType, Options, Parser, Tag};
+use self::cmark::{Event, LinkType, Options, Parser, Tag, TagEnd};
 use crate::codeblock::{CodeBlock, FenceSettings};
 use crate::shortcode::{Shortcode, SHORTCODE_PLACEHOLDER};
 
@@ -211,15 +211,18 @@ fn get_heading_refs(events: &[Event]) -> Vec<HeadingRef> {
 
     for (i, event) in events.iter().enumerate() {
         match event {
-            Event::Start(Tag::Heading(level, anchor, classes)) => {
+            Event::Start(Tag::Heading { level, id, classes, .. }) => {
                 heading_refs.push(HeadingRef::new(
                     i,
                     *level as u32,
-                    anchor.map(|a| a.to_owned()),
+                    id.as_ref().map(|i| {
+                        let s: &str = &i;
+                        s.to_owned()
+                    }),
                     &classes.iter().map(|x| x.to_string()).collect::<Vec<_>>(),
                 ));
             }
-            Event::End(Tag::Heading(_, _, _)) => {
+            Event::End(TagEnd::Heading { .. }) => {
                 heading_refs.last_mut().expect("Heading end before start?").end_idx = i;
             }
             _ => (),
@@ -375,7 +378,7 @@ pub fn markdown_to_html(
                     code_block = Some(block);
                     events.push(Event::Html(begin.into()));
                 }
-                Event::End(Tag::CodeBlock(_)) => {
+                Event::End(TagEnd::CodeBlock { .. }) => {
                     if let Some(ref mut code_block) = code_block {
                         let html = code_block.highlight(&accumulated_block);
                         events.push(Event::Html(html.into()));
@@ -386,22 +389,26 @@ pub fn markdown_to_html(
                     code_block = None;
                     events.push(Event::Html("</code></pre>\n".into()));
                 }
-                Event::Start(Tag::Image(link_type, src, title)) => {
-                    if is_colocated_asset_link(&src) {
-                        let link = format!("{}{}", context.current_page_permalink, &*src);
-                        events.push(Event::Start(Tag::Image(link_type, link.into(), title)));
+                Event::Start(Tag::Image { link_type, dest_url, title, id }) => {
+                    if is_colocated_asset_link(&dest_url) {
+                        let dest_url =
+                            format!("{}{}", context.current_page_permalink, &*dest_url).into();
+                        events.push(Event::Start(Tag::Image { link_type, dest_url, title, id }));
                     } else {
-                        events.push(Event::Start(Tag::Image(link_type, src, title)));
+                        events.push(Event::Start(Tag::Image { link_type, dest_url, title, id }));
                     }
                 }
-                Event::Start(Tag::Link(link_type, link, title)) if link.is_empty() => {
+                Event::Start(Tag::Link { link_type, dest_url, title, id })
+                    if dest_url.is_empty() =>
+                {
                     error = Some(Error::msg("There is a link that is missing a URL"));
-                    events.push(Event::Start(Tag::Link(link_type, "#".into(), title)));
+                    let dest_url = "#".into();
+                    events.push(Event::Start(Tag::Link { link_type, dest_url, title, id }));
                 }
-                Event::Start(Tag::Link(link_type, link, title)) => {
+                Event::Start(Tag::Link { link_type, dest_url, title, id }) => {
                     let fixed_link = match fix_link(
                         link_type,
-                        &link,
+                        &dest_url,
                         context,
                         &mut internal_links,
                         &mut external_links,
@@ -415,12 +422,12 @@ pub fn markdown_to_html(
                     };
 
                     events.push(
-                        if is_external_link(&link)
+                        if is_external_link(&dest_url)
                             && context.config.markdown.has_external_link_tweaks()
                         {
                             let mut escaped = String::new();
                             // write_str can fail but here there are no reasons it should (afaik?)
-                            cmark::escape::escape_href(&mut escaped, &link)
+                            cmark::escape::escape_href(&mut escaped, &dest_url)
                                 .expect("Could not write to buffer");
                             Event::Html(
                                 context
@@ -430,7 +437,12 @@ pub fn markdown_to_html(
                                     .into(),
                             )
                         } else {
-                            Event::Start(Tag::Link(link_type, fixed_link.into(), title))
+                            Event::Start(Tag::Link {
+                                link_type,
+                                dest_url: fixed_link.into(),
+                                title,
+                                id,
+                            })
                         },
                     )
                 }
@@ -452,7 +464,7 @@ pub fn markdown_to_html(
 
                     events.push(event);
                 }
-                Event::End(Tag::Paragraph) => {
+                Event::End(TagEnd::Paragraph) => {
                     events.push(if stop_next_end_p {
                         stop_next_end_p = false;
                         Event::Html("".into())
